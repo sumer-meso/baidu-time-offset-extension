@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Time Offset Changer",
+  "version": "1.1",
+  "description": "修改网页时间差",
+  "permissions": ["storage", "tabs"],
+  "host_permissions": [
+    "*://www.baidu.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "时间偏移设置"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://www.baidu.com/*", "*://*.baidu.com/*"],
+      "js": ["inject.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["pageScript.js"],
+      "matches": ["*://www.baidu.com/*", "*://*.baidu.com/*"]
+    }
+  ]
+}
