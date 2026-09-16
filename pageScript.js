@@ -3,8 +3,20 @@
 // Wrapped in an IIFE: top-level `function`/`let` names were colliding with globals
 // declared later by Baidu's own bundle (e.g. window.formatDate got overwritten).
 (function () {
+    // Only run on Baidu time search results page (wd=时间)
+    if (!window.location.href.includes('wd=%E6%97%B6%E9%97%B4')) {
+        console.log('[Time Offset] Skipping - not a Baidu time search page. URL:', window.location.href);
+        return;
+    }
+
+    console.log('[Time Offset] Initializing on Baidu time search page');
+
     const LOG_PREFIX = '[Time Offset]';
     window.time_offset = 0;
+    let customSunrise = null;  // Custom sunrise time in HH:MM format
+    let customSunset = null;   // Custom sunset time in HH:MM format
+    let autoDetectedSunrise = null;  // Store auto-detected sunrise for fallback
+    let autoDetectedSunset = null;   // Store auto-detected sunset for fallback
 
     let timeRoot = null;
     let baselineClock = null;
@@ -14,6 +26,11 @@
     let observer = null;
     let lastUpdateTime = 0;
     const UPDATE_DEBOUNCE_MS = 100;
+    let sunCanvas = null;
+    let savedBaselineClock = null;  // Used to preserve baseline during custom time reinitialization
+    const markerImages = {};
+    const sunImageUrl = 'https://gips2.baidu.com/it/u=3376438528,1179003902&fm=3028&app=3028&f=PNG&fmt=auto&q=75&size=f72_72';
+    const moonImageUrl = 'https://gips1.baidu.com/it/u=2315833618,1537777767&fm=3028&app=3028&f=PNG&fmt=auto&q=75&size=f72_72';
 
     function readDigits(root) {
         const digits = [...root.querySelectorAll('[class*="time-text"]')]
@@ -158,12 +175,219 @@
         }
     }
 
+    function updateBackground(root, displayedTime) {
+        if (!eventTimes?.sunrise || !eventTimes?.sunset) {
+            return;
+        }
+
+        const currentHour = displayedTime.getHours() + displayedTime.getMinutes() / 60;
+        const sunriseHour = eventTimes.sunrise.hour + eventTimes.sunrise.minute / 60;
+        const sunsetHour = eventTimes.sunset.hour + eventTimes.sunset.minute / 60;
+
+        const isDaytime = currentHour >= sunriseHour && currentHour < sunsetHour;
+
+        // Find the specific wrapper div that is a direct child or close descendant of root
+        // This should be the one with class containing "wrapper" and the background image
+        const wrapper = root.querySelector('[class*="wrapper_"]') || root.parentElement?.querySelector('[class*="wrapper_"]');
+
+        if (!wrapper) {
+            return;
+        }
+
+        if (!wrapper.style.backgroundImage) {
+            return;
+        }
+
+        // Use data attributes to track the current mode
+        const currentMode = wrapper.getAttribute('data-time-mode');
+        const newMode = isDaytime ? 'day' : 'night';
+
+        if (currentMode === newMode) {
+            return; // No change needed
+        }
+
+        wrapper.setAttribute('data-time-mode', newMode);
+
+        // Change background image based on time of day
+        if (isDaytime) {
+            // TODO: Check Baidu's actual daytime background URL by visiting during day and inspecting the wrapper's backgroundImage
+            // Daytime background image
+            wrapper.style.backgroundImage = 'url(https://img1.baidu.com/it/u=3796075125,2394368774&fm=253&fmt=auto&app=138&f=JPEG?w=1059&h=500)';
+        } else {
+            // Nighttime background image
+            wrapper.style.backgroundImage = 'url(https://gips3.baidu.com/it/u=1743996582,3792202273&fm=3028&app=3028&f=PNG&fmt=auto&q=75&size=f1184_840)';
+        }
+
+        // Update the linear-gradient overlay elements
+        const topGradient = wrapper.querySelector('linear-gradient[class*="top_"]');
+        const bottomGradient = wrapper.querySelector('linear-gradient[class*="bottom_"]');
+
+        if (isDaytime) {
+            // TODO: Check Baidu's actual daytime gradient styles by visiting during day and inspecting the topGradient/bottomGradient elements
+            // Daytime gradients - lighter, warmer tones
+            if (topGradient) {
+                topGradient.setAttribute('style', 'background-image: linear-gradient(rgba(135, 206, 235, 0.3) 0%, rgba(135, 206, 235, 0)) !important;');
+            }
+            if (bottomGradient) {
+                bottomGradient.setAttribute('style', 'background-image: linear-gradient(rgba(255, 200, 124, 0), rgba(255, 200, 124, 0.2) 90%) !important;');
+            }
+        } else {
+            // Nighttime gradients - dark, cool tones
+            if (topGradient) {
+                topGradient.setAttribute('style', 'background-image: linear-gradient(#0A1C20 10%, rgba(10, 28, 32, 0)) !important;');
+            }
+            if (bottomGradient) {
+                bottomGradient.setAttribute('style', 'background-image: linear-gradient(rgba(17, 44, 52, 0), #112C34 90%) !important;');
+            }
+        }
+    }
+
+    function getChartCanvas(root) {
+        return root.querySelector('[data-zr-dom-id]') || root.querySelector('canvas');
+    }
+
+    function ensureSunCanvas(root) {
+        const chartCanvas = getChartCanvas(root);
+        if (!chartCanvas || !chartCanvas.parentElement) {
+            return null;
+        }
+
+        if (sunCanvas && sunCanvas.isConnected) {
+            return sunCanvas;
+        }
+
+        sunCanvas = document.createElement('canvas');
+        sunCanvas.width = chartCanvas.width;
+        sunCanvas.height = chartCanvas.height;
+        sunCanvas.style.cssText = [
+            'position:absolute',
+            'left:0',
+            'top:0',
+            'width:100%',
+            'height:100%',
+            'pointer-events:none',
+            'z-index:2'
+        ].join(';');
+        chartCanvas.style.visibility = 'hidden';
+        chartCanvas.parentElement.style.position = 'relative';
+        chartCanvas.parentElement.appendChild(sunCanvas);
+        return sunCanvas;
+    }
+
+    function drawSunChart(root, displayedTime) {
+        const canvas = ensureSunCanvas(root);
+        if (!canvas || !eventTimes?.sunrise || !eventTimes?.sunset) {
+            return;
+        }
+
+        const context = canvas.getContext('2d');
+        const width = canvas.width;
+        const height = canvas.height;
+        const sunriseHour = eventTimes.sunrise.hour + eventTimes.sunrise.minute / 60;
+        const sunsetHour = eventTimes.sunset.hour + eventTimes.sunset.minute / 60;
+        const currentHour = displayedTime.getHours()
+            + displayedTime.getMinutes() / 60
+            + displayedTime.getSeconds() / 3600;
+        let position;
+
+        if (currentHour < sunriseHour) {
+            position = currentHour / sunriseHour * 6;
+        } else if (currentHour < sunsetHour) {
+            position = (currentHour - sunriseHour) / (sunsetHour - sunriseHour) * 12 + 6;
+        } else {
+            position = (currentHour - sunsetHour) / (24 - sunsetHour) * 6 + 18;
+        }
+
+        const toX = hour => hour / 24 * width;
+        const toY = value => (0.7 - value) / 1.4 * height;
+        const curveY = value => 0.5 * Math.sin(Math.PI / 12 * (value - 6));
+
+        context.clearRect(0, 0, width, height);
+
+        // ECharts uses a smooth line with the day color mapped across the curve.
+        const drawSegment = (from, to, strokeStyle, lineWidth = 1) => {
+            context.beginPath();
+            for (let hour = from; hour <= to; hour += 0.1) {
+                const x = toX(hour);
+                const y = toY(curveY(hour));
+                if (hour === from) {
+                    context.moveTo(x, y);
+                } else {
+                    context.lineTo(x, y);
+                }
+            }
+            context.strokeStyle = strokeStyle;
+            context.lineWidth = lineWidth;
+            context.stroke();
+        };
+
+        drawSegment(0, 24, 'rgba(255, 255, 255, 0.10)', 2);
+
+        const baselineGradient = context.createLinearGradient(0, 0, width, 0);
+        baselineGradient.addColorStop(0, 'rgba(255, 240, 161, 0)');
+        baselineGradient.addColorStop(0.36, 'rgba(255, 255, 255, 1)');
+        baselineGradient.addColorStop(0.46, '#ffffff');
+        baselineGradient.addColorStop(0.54, '#ffffff');
+        baselineGradient.addColorStop(0.64, 'rgba(255, 255, 255, 1)');
+        baselineGradient.addColorStop(1, 'rgba(255, 240, 161, 0)');
+        const daytimeGradient = context.createLinearGradient(toX(sunriseHour), 0, toX(sunsetHour), 0);
+        daytimeGradient.addColorStop(0, 'rgba(255, 240, 161, 0.10)');
+        daytimeGradient.addColorStop(0.18, 'rgba(255, 240, 161, 0.28)');
+        daytimeGradient.addColorStop(0.36, '#FFF0A1');
+        daytimeGradient.addColorStop(0.64, '#FFF0A1');
+        daytimeGradient.addColorStop(0.82, 'rgba(255, 240, 161, 0.28)');
+        daytimeGradient.addColorStop(1, 'rgba(255, 240, 161, 0.10)');
+        drawSegment(sunriseHour, sunsetHour, daytimeGradient, 2);
+
+        context.save();
+        context.setLineDash([5, 2]);
+        context.beginPath();
+        context.moveTo(0, toY(0));
+        context.lineTo(width, toY(0));
+        context.strokeStyle = baselineGradient;
+        context.lineWidth = 0.7;
+        context.stroke();
+        context.restore();
+
+        const drawPoint = (hour, color) => {
+            context.beginPath();
+            context.arc(toX(hour), toY(curveY(hour)), 2, 0, Math.PI * 2);
+            context.fillStyle = color;
+            context.fill();
+        };
+
+        drawPoint(6, '#FBB575');
+        drawPoint(18, '#8EA5F9');
+
+        const markerX = toX(position);
+        const markerY = toY(curveY(position));
+        const isDay = currentHour >= sunriseHour && currentHour < sunsetHour;
+        const markerKey = isDay ? 'sun' : 'moon';
+        const markerUrl = isDay ? sunImageUrl : moonImageUrl;
+        const marker = markerImages[markerKey] || (markerImages[markerKey] = new Image());
+        if (!marker.src) {
+            marker.onload = () => drawSunChart(root, displayedTime);
+            marker.src = markerUrl;
+        } else if (marker.complete) {
+            context.drawImage(marker, markerX - 12, markerY - 12, 24, 24);
+        }
+    }
+
     function initialize(root) {
         if (timeRoot === root && baselineClock) {
             return true;
         }
 
-        const clock = readDigits(root);
+        let clock;
+        if (savedBaselineClock) {
+            // Use the saved baseline to avoid applying offset twice when reinitializing
+            clock = savedBaselineClock;
+            savedBaselineClock = null;  // Clear after use
+        } else {
+            // Read from DOM for normal initialization
+            clock = readDigits(root);
+        }
+
         if (!clock) {
             return false;
         }
@@ -172,8 +396,32 @@
         baselineClock = clock;
         baselineWallTime = Date.now();
 
-        const sunrise = readEventTime(root, '[class*="sunrise"]');
-        const sunset = readEventTime(root, '[class*="sunset"]');
+        let sunrise = readEventTime(root, '[class*="sunrise"]');
+        let sunset = readEventTime(root, '[class*="sunset"]');
+
+        // Store the auto-detected values for fallback (only on first initialization)
+        if (!autoDetectedSunrise) {
+            autoDetectedSunrise = sunrise;
+            autoDetectedSunset = sunset;
+        }
+
+        // Use custom times if provided, otherwise fall back to auto-detected or DOM values
+        if (customSunrise) {
+            const [hour, minute] = customSunrise.split(':');
+            sunrise = {hour: Number(hour), minute: Number(minute)};
+        } else if (autoDetectedSunrise) {
+            // If custom sunrise is null/cleared, use the original auto-detected value
+            sunrise = autoDetectedSunrise;
+        }
+    
+        if (customSunset) {
+            const [hour, minute] = customSunset.split(':');
+            sunset = {hour: Number(hour), minute: Number(minute)};
+        } else if (autoDetectedSunset) {
+            // If custom sunset is null/cleared, use the original auto-detected value
+            sunset = autoDetectedSunset;
+        }
+
         eventTimes = {
             sunrise,
             sunset,
@@ -181,8 +429,33 @@
             sunsetText: sunset ? `${String(sunset.hour).padStart(2, '0')}:${String(sunset.minute).padStart(2, '0')}` : ''
         };
 
-        console.log(`${LOG_PREFIX} 已读取页面时钟和日出/日落时间`, {clock, sunrise, sunset});
+        updateEventTimeDisplay(root);
         return true;
+    }
+
+    function updateEventTimeDisplay(root) {
+        // Update the sunrise/sunset time displays (日出HH:MM, 日落HH:MM)
+        if (!eventTimes?.sunrise || !eventTimes?.sunset) {
+            return;
+        }
+
+        // Find and update sunrise time display
+        const sunriseElement = root.querySelector('[class*="sunrise"]');
+        if (sunriseElement) {
+            const newText = `日出${eventTimes.sunriseText}`;
+            if (sunriseElement.textContent.trim() !== newText) {
+                sunriseElement.textContent = newText;
+            }
+        }
+
+        // Find and update sunset time display
+        const sunsetElement = root.querySelector('[class*="sunset"]');
+        if (sunsetElement) {
+            const newText = `日落${eventTimes.sunsetText}`;
+            if (sunsetElement.textContent.trim() !== newText) {
+                sunsetElement.textContent = newText;
+            }
+        }
     }
 
     function update() {
@@ -211,6 +484,9 @@
         updateClock(timeRoot, displayedTime);
         updateCountdown(timeRoot, displayedTime);
         updateDate(timeRoot, displayedTime);
+        updateEventTimeDisplay(timeRoot);
+        updateBackground(timeRoot, displayedTime);
+        drawSunChart(timeRoot, displayedTime);
     }
 
     function findAndStart() {
@@ -234,11 +510,41 @@
 
     window.addEventListener('TimeOffsetUpdate', event => {
         window.time_offset = Number(event.detail.offset) || 0;
-        console.log(`${LOG_PREFIX} 偏移量更新: ${window.time_offset}ms`);
         update();
     });
 
-    console.log(`${LOG_PREFIX} DOM 时间更新器已启动`);
+    window.addEventListener('CustomTimesUpdate', event => {
+        const newCustomSunrise = event.detail.customSunrise || null;
+        const newCustomSunset = event.detail.customSunset || null;
+
+        // Check if custom sunrise/sunset changed
+        if (newCustomSunrise !== customSunrise || newCustomSunset !== customSunset) {
+            customSunrise = newCustomSunrise;
+            customSunset = newCustomSunset;
+
+            // Reinitialize to recalculate eventTimes with new custom values
+            if (timeRoot) {
+                // Before reinitializing, save the original baseline (without offset)
+                const elapsed = Date.now() - baselineWallTime;
+                const baseDate = new Date();
+                const base = toDate(baseDate, baselineClock);
+                const realCurrentTime = new Date(base.getTime() + elapsed);
+
+                // Convert back to {hour, minute, second} format
+                savedBaselineClock = {
+                    hour: realCurrentTime.getHours(),
+                    minute: realCurrentTime.getMinutes(),
+                    second: realCurrentTime.getSeconds()
+                };
+
+                timeRoot = null;
+                baselineClock = null;
+                findAndStart();
+            }
+        }
+
+        update();
+    });
 })();
 
 
