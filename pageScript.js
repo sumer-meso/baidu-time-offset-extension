@@ -377,6 +377,7 @@
             const clampedMarkerX = Math.max(29, Math.min(width - 29, markerX));
             context.drawImage(marker, clampedMarkerX - 12, markerY - 12, 24, 24);
         }
+        // TODO: check around midnight if the sun marker is a full picture, also compare with Baidu's sun marker
     }
 
     function initialize(root) {

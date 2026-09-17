@@ -69,12 +69,17 @@
             background: #003a8c;
         }
         .status {
-            margin-top: 12px;
+            position: fixed;
+            bottom: 15px;
+            left: 15px;
+            right: 15px;
             padding: 10px;
             border-radius: 4px;
             font-size: 12px;
             text-align: center;
             display: none;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         }
         .status.success {
             background: #f6ffed;
