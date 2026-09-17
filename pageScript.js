@@ -210,9 +210,8 @@
 
         // Change background image based on time of day
         if (isDaytime) {
-            // TODO: Check Baidu's actual daytime background URL by visiting during day and inspecting the wrapper's backgroundImage
             // Daytime background image
-            wrapper.style.backgroundImage = 'url(https://img1.baidu.com/it/u=3796075125,2394368774&fm=253&fmt=auto&app=138&f=JPEG?w=1059&h=500)';
+            wrapper.style.backgroundImage = 'url(https://gips0.baidu.com/it/u=567037999,4238421755&fm=3028&app=3028&f=PNG&fmt=auto&q=75&size=f1184_845)';
         } else {
             // Nighttime background image
             wrapper.style.backgroundImage = 'url(https://gips3.baidu.com/it/u=1743996582,3792202273&fm=3028&app=3028&f=PNG&fmt=auto&q=75&size=f1184_840)';
@@ -223,13 +222,12 @@
         const bottomGradient = wrapper.querySelector('linear-gradient[class*="bottom_"]');
 
         if (isDaytime) {
-            // TODO: Check Baidu's actual daytime gradient styles by visiting during day and inspecting the topGradient/bottomGradient elements
-            // Daytime gradients - lighter, warmer tones
+            // Daytime gradients - blue tones matching Baidu's actual style
             if (topGradient) {
-                topGradient.setAttribute('style', 'background-image: linear-gradient(rgba(135, 206, 235, 0.3) 0%, rgba(135, 206, 235, 0)) !important;');
+                topGradient.setAttribute('style', 'background-image: linear-gradient(#4887E6 10%, rgba(72, 135, 230, 0)) !important;');
             }
             if (bottomGradient) {
-                bottomGradient.setAttribute('style', 'background-image: linear-gradient(rgba(255, 200, 124, 0), rgba(255, 200, 124, 0.2) 90%) !important;');
+                bottomGradient.setAttribute('style', 'background-image: linear-gradient(rgba(37, 97, 188, 0), #4887E6 90%) !important;');
             }
         } else {
             // Nighttime gradients - dark, cool tones
