@@ -17,6 +17,7 @@
     let customSunset = null;   // Custom sunset time in HH:MM format
     let autoDetectedSunrise = null;  // Store auto-detected sunrise for fallback
     let autoDetectedSunset = null;   // Store auto-detected sunset for fallback
+    let currentDayNightMode = null;  // Track current day/night mode to detect switches
 
     let timeRoot = null;
     let baselineClock = null;
@@ -258,14 +259,19 @@
         sunCanvas.width = chartCanvas.width;
         sunCanvas.height = chartCanvas.height;
         sunCanvas.style.cssText = [
-            'position:absolute',
-            'left:0',
-            'top:0',
-            'width:100%',
-            'height:100%',
-            'pointer-events:none',
-            'z-index:2'
-        ].join(';');
+            'position: absolute',
+            'left: 0px',
+            'top: 0px',
+            'width: ' + chartCanvas.width + 'px',
+            'height: ' + chartCanvas.height + 'px',
+            'user-select: none',
+            '-webkit-tap-highlight-color: rgba(0, 0, 0, 0)',
+            'padding: 0px',
+            'margin: 0px',
+            'border-width: 0px',
+            'pointer-events: none',
+            'z-index: 2'
+        ].join('; ');
         chartCanvas.style.visibility = 'hidden';
         chartCanvas.parentElement.style.position = 'relative';
         chartCanvas.parentElement.appendChild(sunCanvas);
@@ -367,7 +373,9 @@
             marker.onload = () => drawSunChart(root, displayedTime);
             marker.src = markerUrl;
         } else if (marker.complete) {
-            context.drawImage(marker, markerX - 12, markerY - 12, 24, 24);
+            // Clamp marker position to prevent cutoff at edges (marker is 24x24, drawn with 12px offset)
+            const clampedMarkerX = Math.max(20, Math.min(width - 20, markerX));
+            context.drawImage(marker, clampedMarkerX - 12, markerY - 12, 24, 24);
         }
     }
 
@@ -456,6 +464,16 @@
         }
     }
 
+    function isDaytimeNow(displayedTime) {
+        if (!eventTimes?.sunrise || !eventTimes?.sunset) {
+            return null;
+        }
+        const currentHour = displayedTime.getHours() + displayedTime.getMinutes() / 60;
+        const sunriseHour = eventTimes.sunrise.hour + eventTimes.sunrise.minute / 60;
+        const sunsetHour = eventTimes.sunset.hour + eventTimes.sunset.minute / 60;
+        return currentHour >= sunriseHour && currentHour < sunsetHour;
+    }
+
     function update() {
         if (!timeRoot || !baselineClock) {
             return;
@@ -480,11 +498,23 @@
         const displayedTime = new Date(base.getTime() + elapsed + Number(window.time_offset || 0));
 
         updateClock(timeRoot, displayedTime);
-        updateCountdown(timeRoot, displayedTime);
         updateDate(timeRoot, displayedTime);
         updateEventTimeDisplay(timeRoot);
-        updateBackground(timeRoot, displayedTime);
         drawSunChart(timeRoot, displayedTime);
+
+        // Only update countdown when switching from night to day (sunrise)
+        // Skip updates at midnight, unless triggered by popup changes
+        const isDaytime = isDaytimeNow(displayedTime);
+        const hour = displayedTime.getHours();
+
+        if (isDaytime !== currentDayNightMode) {
+            // Only update if transitioning to daytime (night → day/sunrise)
+            // and NOT at midnight
+            if (isDaytime === true && hour !== 0) {
+                updateCountdown(timeRoot, displayedTime);
+            }
+            currentDayNightMode = isDaytime;
+        }
     }
 
     function findAndStart() {
@@ -508,7 +538,16 @@
 
     window.addEventListener('TimeOffsetUpdate', event => {
         window.time_offset = Number(event.detail.offset) || 0;
+        // Reset day/night mode tracking to force background update
+        currentDayNightMode = null;
         update();
+        if (timeRoot) {
+            const baseDate = new Date();
+            const base = toDate(baseDate, baselineClock);
+            const elapsed = Date.now() - baselineWallTime;
+            const displayedTime = new Date(base.getTime() + elapsed + Number(window.time_offset || 0));
+            updateBackground(timeRoot, displayedTime);
+        }
     });
 
     window.addEventListener('CustomTimesUpdate', event => {
@@ -537,7 +576,16 @@
 
                 timeRoot = null;
                 baselineClock = null;
+                // Reset day/night mode tracking to force background update
+                currentDayNightMode = null;
                 findAndStart();
+
+                // Update background after reinitializing
+                const newBaseDate = new Date();
+                const newBase = toDate(newBaseDate, baselineClock);
+                const newElapsed = Date.now() - baselineWallTime;
+                const displayedTime = new Date(newBase.getTime() + newElapsed + Number(window.time_offset || 0));
+                updateBackground(timeRoot, displayedTime);
             }
         }
 
