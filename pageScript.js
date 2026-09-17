@@ -302,7 +302,7 @@
             position = (currentHour - sunsetHour) / (24 - sunsetHour) * 6 + 18;
         }
 
-        const toX = hour => hour / 24 * width;
+        const toX = hour => (hour / 24 * 356) + 8;
         const toY = value => (0.7 - value) / 1.4 * height;
         const curveY = value => 0.5 * Math.sin(Math.PI / 12 * (value - 6));
 
@@ -374,7 +374,7 @@
             marker.src = markerUrl;
         } else if (marker.complete) {
             // Clamp marker position to prevent cutoff at edges (marker is 24x24, drawn with 12px offset)
-            const clampedMarkerX = Math.max(20, Math.min(width - 20, markerX));
+            const clampedMarkerX = Math.max(29, Math.min(width - 29, markerX));
             context.drawImage(marker, clampedMarkerX - 12, markerY - 12, 24, 24);
         }
     }
