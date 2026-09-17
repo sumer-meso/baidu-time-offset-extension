@@ -474,6 +474,25 @@
         return currentHour >= sunriseHour && currentHour < sunsetHour;
     }
 
+    function fullUpdate(root) {
+        if (!root || !baselineClock) {
+            return;
+        }
+
+        const baseDate = new Date();
+        const base = toDate(baseDate, baselineClock);
+        const elapsed = Date.now() - baselineWallTime;
+        const displayedTime = new Date(base.getTime() + elapsed + Number(window.time_offset || 0));
+
+        // Update everything without restrictions
+        updateClock(root, displayedTime);
+        updateDate(root, displayedTime);
+        updateEventTimeDisplay(root);
+        updateCountdown(root, displayedTime);
+        updateBackground(root, displayedTime);
+        drawSunChart(root, displayedTime);
+    }
+
     function update() {
         if (!timeRoot || !baselineClock) {
             return;
@@ -530,6 +549,11 @@
             observer = null;
         }
         update();
+
+        // If offset was already stored, apply it immediately
+        if (window.time_offset !== 0) {
+            fullUpdate(root);
+        }
     }
 
     observer = new MutationObserver(findAndStart);
@@ -542,11 +566,7 @@
         currentDayNightMode = null;
         update();
         if (timeRoot) {
-            const baseDate = new Date();
-            const base = toDate(baseDate, baselineClock);
-            const elapsed = Date.now() - baselineWallTime;
-            const displayedTime = new Date(base.getTime() + elapsed + Number(window.time_offset || 0));
-            updateBackground(timeRoot, displayedTime);
+            fullUpdate(timeRoot);
         }
     });
 
@@ -580,12 +600,10 @@
                 currentDayNightMode = null;
                 findAndStart();
 
-                // Update background after reinitializing
-                const newBaseDate = new Date();
-                const newBase = toDate(newBaseDate, baselineClock);
-                const newElapsed = Date.now() - baselineWallTime;
-                const displayedTime = new Date(newBase.getTime() + newElapsed + Number(window.time_offset || 0));
-                updateBackground(timeRoot, displayedTime);
+                // Full update after reinitializing
+                if (timeRoot) {
+                    fullUpdate(timeRoot);
+                }
             }
         }
 
