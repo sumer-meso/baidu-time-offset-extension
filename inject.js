@@ -5,15 +5,6 @@
     pageScript.src = chrome.runtime.getURL('pageScript.js');
     pageScript.onload = function() {
         this.remove();
-
-        chrome.storage.sync.get(['timeOffset', 'customSunrise', 'customSunset'], (storage) => {
-            const offset = storage.timeOffset ?? 7200000;
-            const customSunrise = storage.customSunrise || null;
-            const customSunset = storage.customSunset || null;
-            window.dispatchEvent(new CustomEvent('TimeOffsetUpdate', {
-                detail: { offset, customSunrise, customSunset }
-            }));
-        });
     };
     pageScript.onerror = function() {
         console.error('[Time Offset] 加载 pageScript.js 失败');
@@ -22,6 +13,12 @@
     
     // Listen for messages from popup
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+        // Only dispatch events if explicitly marked as user action to prevent auto-application
+        if (!request.userAction) {
+            sendResponse({ success: false });
+            return;
+        }
+        
         if (request.action === 'updateOffset') {
             // Dispatch event to page script
             window.dispatchEvent(new CustomEvent('TimeOffsetUpdate', {
@@ -36,6 +33,14 @@
                 detail: {
                     customSunrise: request.customSunrise,
                     customSunset: request.customSunset
+                }
+            }));
+            sendResponse({ success: true });
+        } else if (request.action === 'updateCustomNextSunrise') {
+            // Dispatch event to page script for custom next sunrise
+            window.dispatchEvent(new CustomEvent('CustomNextSunriseUpdate', {
+                detail: {
+                    customNextSunrise: request.customNextSunrise
                 }
             }));
             sendResponse({ success: true });

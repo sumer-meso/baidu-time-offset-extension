@@ -9,26 +9,30 @@
         return;
     }
 
-    console.log('[Time Offset] Initializing on Baidu time search page');
-
     const LOG_PREFIX = '[Time Offset]';
     window.time_offset = 0;
     let customSunrise = null;  // Custom sunrise time in HH:MM format
     let customSunset = null;   // Custom sunset time in HH:MM format
+    let customNextSunrise = null;  // Custom sunrise for tomorrow in HH:MM format
     let autoDetectedSunrise = null;  // Store auto-detected sunrise for fallback
     let autoDetectedSunset = null;   // Store auto-detected sunset for fallback
+    let autoDetectedNextSunrise = null;  // Store auto-detected next sunrise for fallback
     let currentDayNightMode = null;  // Track current day/night mode to detect switches
 
     let timeRoot = null;
     let baselineClock = null;
     let baselineWallTime = 0;
-    let eventTimes = null;
+    let eventTimes = null;  // {sunrise, sunset, sunriseText, sunsetText}
+    let nextSunriseTime = null;  // {hour, minute} for tomorrow's sunrise
     let updateTimer = null;
     let observer = null;
+    let elementMutationObserver = null;  // Observer to revert San.js's updates on clock and countdown
     let lastUpdateTime = 0;
     const UPDATE_DEBOUNCE_MS = 100;
+    const UPDATE_INTERVAL_MS = 1000;
     let sunCanvas = null;
     let savedBaselineClock = null;  // Used to preserve baseline during custom time reinitialization
+    let savedBaselineWallTime = null;  // Used to preserve wall time during custom time reinitialization
     const markerImages = {};
     const sunImageUrl = 'https://gips2.baidu.com/it/u=3376438528,1179003902&fm=3028&app=3028&f=PNG&fmt=auto&q=75&size=f72_72';
     const moonImageUrl = 'https://gips1.baidu.com/it/u=2315833618,1537777767&fm=3028&app=3028&f=PNG&fmt=auto&q=75&size=f72_72';
@@ -94,6 +98,54 @@
             .find(element => /^(日出|日落|下一个日出)/.test(element.textContent.trim())) || null;
     }
 
+    function watchClockAndCountdown(root) {
+        // Stop previous observer if it exists
+        if (elementMutationObserver) {
+            elementMutationObserver.disconnect();
+        }
+
+        // Create observer that reverts San.js's updates
+        elementMutationObserver = new MutationObserver(() => {
+            // When San.js updates the DOM, immediately re-apply our offset values
+            if (timeRoot && Date.now() - lastUpdateTime >= UPDATE_DEBOUNCE_MS) {
+                const baseDate = new Date();
+                const base = toDate(baseDate, baselineClock);
+                const elapsed = Date.now() - baselineWallTime;
+                const displayedTime = new Date(base.getTime() + elapsed + Number(window.time_offset || 0));
+                
+                // Update both clock and countdown
+                updateClock(timeRoot, displayedTime);
+                updateCountdown(timeRoot, displayedTime);
+            }
+        });
+
+        // Watch all time digit elements
+        const timeElements = [...root.querySelectorAll('[class*="time-text"]')];
+        timeElements.forEach(elem => {
+            elementMutationObserver.observe(elem, { characterData: true, subtree: true });
+        });
+
+        // Watch countdown element
+        const countdown = findCountdown(root);
+        if (countdown) {
+            elementMutationObserver.observe(countdown, { characterData: true, subtree: true });
+        }
+    }
+
+    function extractNextSunriseFromCountdown(root) {
+        const countdown = findCountdown(root);
+        if (!countdown) {
+            return null;
+        }
+        const text = countdown.textContent.trim();
+        // Match "下一个日出HH:MM还有..." pattern
+        const match = text.match(/下一个日出(\d{1,2}):(\d{2})/);
+        if (!match) {
+            return null;
+        }
+        return {hour: Number(match[1]), minute: Number(match[2])};
+    }
+
     function updateClock(root, date) {
         const digits = formatClock(date);
         const elements = [...root.querySelectorAll('[class*="time-text"]')];
@@ -127,21 +179,30 @@
         // so a large offset that shifts the date doesn't misalign the countdown.
         const sunriseToday = eventTimes.sunrise ? toDate(now, eventTimes.sunrise) : null;
         const sunsetToday = eventTimes.sunset ? toDate(now, eventTimes.sunset) : null;
+        const sunriseTomorrow = nextSunriseTime ? toDate(new Date(now.getTime() + 24 * 60 * 60 * 1000), nextSunriseTime) : null;
 
-        let event = sunriseToday;
-        let label = '日出';
-        let labelTime = eventTimes.sunriseText;
+        let event = null;
+        let label = '';
+        let labelTime = '';
 
-        if (event && now >= event) {
+        // Determine which event to show based on current time
+        if (sunriseToday && now < sunriseToday) {
+            // Before sunrise: countdown to sunrise
+            event = sunriseToday;
+            label = '日出';
+            labelTime = eventTimes.sunriseText;
+        } else if (sunsetToday && now < sunsetToday) {
+            // Between sunrise and sunset: countdown to sunset
             event = sunsetToday;
             label = '日落';
             labelTime = eventTimes.sunsetText;
-        }
-        if (event && now >= event && sunriseToday) {
-            event = new Date(sunriseToday.getTime() + 24 * 60 * 60 * 1000);
+        } else if (sunriseTomorrow) {
+            // After sunset: countdown to next sunrise
+            event = sunriseTomorrow;
             label = '下一个日出';
-            labelTime = eventTimes.sunriseText;
+            labelTime = nextSunriseTime ? `${String(nextSunriseTime.hour).padStart(2, '0')}:${String(nextSunriseTime.minute).padStart(2, '0')}` : '';
         }
+
         if (!event) {
             return;
         }
@@ -185,7 +246,18 @@
         const sunriseHour = eventTimes.sunrise.hour + eventTimes.sunrise.minute / 60;
         const sunsetHour = eventTimes.sunset.hour + eventTimes.sunset.minute / 60;
 
-        const isDaytime = currentHour >= sunriseHour && currentHour < sunsetHour;
+        let backgroundState = null;  // 'day', 'twilight', or 'night'
+
+        if (currentHour >= sunriseHour && currentHour < sunsetHour - 1) {
+            // Daytime (more than 1 hour before sunset)
+            backgroundState = 'day';
+        } else if (currentHour >= sunsetHour - 1 && currentHour < sunsetHour) {
+            // Twilight (within 1 hour before sunset)
+            backgroundState = 'twilight';
+        } else {
+            // Nighttime (after sunset or close to sunrise)
+            backgroundState = 'night';
+        }
 
         // Find the specific wrapper div that is a direct child or close descendant of root
         // This should be the one with class containing "wrapper" and the background image
@@ -201,18 +273,20 @@
 
         // Use data attributes to track the current mode
         const currentMode = wrapper.getAttribute('data-time-mode');
-        const newMode = isDaytime ? 'day' : 'night';
 
-        if (currentMode === newMode) {
+        if (currentMode === backgroundState) {
             return; // No change needed
         }
 
-        wrapper.setAttribute('data-time-mode', newMode);
+        wrapper.setAttribute('data-time-mode', backgroundState);
 
         // Change background image based on time of day
-        if (isDaytime) {
+        if (backgroundState === 'day') {
             // Daytime background image
             wrapper.style.backgroundImage = 'url(https://gips0.baidu.com/it/u=567037999,4238421755&fm=3028&app=3028&f=PNG&fmt=auto&q=75&size=f1184_845)';
+        } else if (backgroundState === 'twilight') {
+            // Twilight background image (same as day)
+            wrapper.style.backgroundImage = 'url(https://gips0.baidu.com/it/u=3352333234,2234725684&fm=3028&app=3028&f=PNG&fmt=auto&q=75&size=f1184_845)';
         } else {
             // Nighttime background image
             wrapper.style.backgroundImage = 'url(https://gips3.baidu.com/it/u=1743996582,3792202273&fm=3028&app=3028&f=PNG&fmt=auto&q=75&size=f1184_840)';
@@ -222,13 +296,21 @@
         const topGradient = wrapper.querySelector('linear-gradient[class*="top_"]');
         const bottomGradient = wrapper.querySelector('linear-gradient[class*="bottom_"]');
 
-        if (isDaytime) {
+        if (backgroundState === 'day') {
             // Daytime gradients - blue tones matching Baidu's actual style
             if (topGradient) {
                 topGradient.setAttribute('style', 'background-image: linear-gradient(#4887E6 10%, rgba(72, 135, 230, 0)) !important;');
             }
             if (bottomGradient) {
                 bottomGradient.setAttribute('style', 'background-image: linear-gradient(rgba(37, 97, 188, 0), #4887E6 90%) !important;');
+            }
+        } else if (backgroundState === 'twilight') {
+            // Twilight gradients - purple and dark blue
+            if (topGradient) {
+                topGradient.setAttribute('style', 'background-image: linear-gradient(#7B4F7E 10%, rgba(123, 79, 126, 0)) !important;');
+            }
+            if (bottomGradient) {
+                bottomGradient.setAttribute('style', 'background-image: linear-gradient(rgba(12, 11, 66, 0), #0C0B42 90%) !important;');
             }
         } else {
             // Nighttime gradients - dark, cool tones
@@ -281,6 +363,9 @@
     function drawSunChart(root, displayedTime) {
         const canvas = ensureSunCanvas(root);
         if (!canvas || !eventTimes?.sunrise || !eventTimes?.sunset) {
+            if (!canvas && displayedTime && eventTimes?.sunrise && eventTimes?.sunset) {
+                setTimeout(() => drawSunChart(root, displayedTime), 100);
+            }
             return;
         }
 
@@ -381,8 +466,8 @@
     }
 
     function initialize(root) {
-        if (timeRoot === root && baselineClock) {
-            return true;
+        if (timeRoot === root && baselineClock && baselineWallTime) {
+            return true;  // Already initialized, don't reset baselineWallTime
         }
 
         let clock;
@@ -401,15 +486,23 @@
 
         timeRoot = root;
         baselineClock = clock;
-        baselineWallTime = Date.now();
+        // Use saved wall time if available (preserves time precision during reinitialize)
+        // Otherwise use current time for new initialization
+        baselineWallTime = savedBaselineWallTime !== null ? savedBaselineWallTime : Date.now();
+        if (savedBaselineWallTime !== null) {
+            savedBaselineWallTime = null;  // Clear after use
+        }
 
+        // Read sunrise/sunset from DOM and store for later use
         let sunrise = readEventTime(root, '[class*="sunrise"]');
         let sunset = readEventTime(root, '[class*="sunset"]');
+        let nextSunrise = extractNextSunriseFromCountdown(root);
 
         // Store the auto-detected values for fallback (only on first initialization)
         if (!autoDetectedSunrise) {
             autoDetectedSunrise = sunrise;
             autoDetectedSunset = sunset;
+            autoDetectedNextSunrise = nextSunrise;
         }
 
         // Use custom times if provided, otherwise fall back to auto-detected or DOM values
@@ -428,6 +521,20 @@
             // If custom sunset is null/cleared, use the original auto-detected value
             sunset = autoDetectedSunset;
         }
+
+        if (customNextSunrise) {
+            const [hour, minute] = customNextSunrise.split(':');
+            nextSunrise = {hour: Number(hour), minute: Number(minute)};
+        } else if (autoDetectedNextSunrise) {
+            // If custom next sunrise is null/cleared, use the original auto-detected value
+            nextSunrise = autoDetectedNextSunrise;
+        } else if (sunrise) {
+            // When both custom and auto-detected are null, use today's sunrise as fallback
+            // Don't use the extracted value from the countdown (it might be stale)
+            nextSunrise = sunrise;
+        }
+
+        nextSunriseTime = nextSunrise;
 
         eventTimes = {
             sunrise,
@@ -520,21 +627,10 @@
         updateClock(timeRoot, displayedTime);
         updateDate(timeRoot, displayedTime);
         updateEventTimeDisplay(timeRoot);
-        drawSunChart(timeRoot, displayedTime);
-
-        // Only update countdown when switching from night to day (sunrise)
-        // Skip updates at midnight, unless triggered by popup changes
-        const isDaytime = isDaytimeNow(displayedTime);
-        const hour = displayedTime.getHours();
-
-        if (isDaytime !== currentDayNightMode) {
-            // Only update if transitioning to daytime (night → day/sunrise)
-            // and NOT at midnight
-            if (isDaytime === true && hour !== 0) {
-                updateCountdown(timeRoot, displayedTime);
-            }
-            currentDayNightMode = isDaytime;
-        }
+        updateCountdown(timeRoot, displayedTime);  // Always update countdown to keep San.js's changes overwritten
+        
+        // Re-watch clock and countdown after update
+        watchClockAndCountdown(timeRoot);
     }
 
     function findAndStart() {
@@ -543,18 +639,16 @@
             return;
         }
         if (!updateTimer) {
-            updateTimer = setInterval(update, 1000);
+            updateTimer = setInterval(update, UPDATE_INTERVAL_MS);
         }
         if (observer) {
             observer.disconnect();
             observer = null;
         }
         update();
-
-        // If offset was already stored, apply it immediately
-        if (window.time_offset !== 0) {
-            fullUpdate(root);
-        }
+        
+        // Start watching clock and countdown to revert San.js updates
+        watchClockAndCountdown(root);
     }
 
     observer = new MutationObserver(findAndStart);
@@ -563,6 +657,18 @@
 
     window.addEventListener('TimeOffsetUpdate', event => {
         window.time_offset = Number(event.detail.offset) || 0;
+        
+        // Also update custom times if provided in the event (e.g., on page load from storage)
+        if (event.detail.customSunrise !== undefined) {
+            customSunrise = event.detail.customSunrise || null;
+        }
+        if (event.detail.customSunset !== undefined) {
+            customSunset = event.detail.customSunset || null;
+        }
+        if (event.detail.customNextSunrise !== undefined) {
+            customNextSunrise = event.detail.customNextSunrise || null;
+        }
+        
         // Reset day/night mode tracking to force background update
         currentDayNightMode = null;
         update();
@@ -594,6 +700,14 @@
                     minute: realCurrentTime.getMinutes(),
                     second: realCurrentTime.getSeconds()
                 };
+                // Also preserve the wall time to avoid timing gaps during reinitialize
+                savedBaselineWallTime = baselineWallTime + elapsed;
+
+                // Stop element mutation observer before reinitializing
+                if (elementMutationObserver) {
+                    elementMutationObserver.disconnect();
+                    elementMutationObserver = null;
+                }
 
                 timeRoot = null;
                 baselineClock = null;
@@ -604,6 +718,53 @@
                 // Full update after reinitializing
                 if (timeRoot) {
                     fullUpdate(timeRoot);
+                    watchClockAndCountdown(timeRoot);
+                }
+            }
+        }
+
+        update();
+    });
+
+    window.addEventListener('CustomNextSunriseUpdate', event => {
+        const newCustomNextSunrise = event.detail.customNextSunrise || null;
+
+        // Check if custom next sunrise changed
+        if (newCustomNextSunrise !== customNextSunrise) {
+            customNextSunrise = newCustomNextSunrise;
+
+            // Reinitialize to recalculate nextSunriseTime with new custom value
+            if (timeRoot) {
+                // Before reinitializing, save the original baseline (without offset)
+                const elapsed = Date.now() - baselineWallTime;
+                const baseDate = new Date();
+                const base = toDate(baseDate, baselineClock);
+                const realCurrentTime = new Date(base.getTime() + elapsed);
+
+                // Convert back to {hour, minute, second} format
+                savedBaselineClock = {
+                    hour: realCurrentTime.getHours(),
+                    minute: realCurrentTime.getMinutes(),
+                    second: realCurrentTime.getSeconds()
+                };
+                // Also preserve the wall time to avoid timing gaps during reinitialize
+                savedBaselineWallTime = baselineWallTime + elapsed;
+
+                // Stop element mutation observer before reinitializing
+                if (elementMutationObserver) {
+                    elementMutationObserver.disconnect();
+                    elementMutationObserver = null;
+                }
+
+                timeRoot = null;
+                baselineClock = null;
+                currentDayNightMode = null;
+                findAndStart();
+
+                // Full update after reinitializing
+                if (timeRoot) {
+                    fullUpdate(timeRoot);
+                    watchClockAndCountdown(timeRoot);
                 }
             }
         }

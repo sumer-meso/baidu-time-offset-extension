@@ -12,6 +12,9 @@ const translations = {
         sunsetLabel: '日落时间 (HH:MM, 可选):',
         sunsetHint: '输入日落时间，例如 18:00',
         sunsetHintText: '留空则使用自动检测的时间',
+        nextSunriseLabel: '明天日出时间 (HH:MM, 可选):',
+        nextSunriseHint: '输入明天日出时间，例如 06:00',
+        nextSunriseHintText: '留空则使用自动检测的时间',
         saveBtn: '💾 保存设置',
         customSaveBtn: '💾 保存自定义时间',
         presetLabel: '快速预设:',
@@ -37,6 +40,9 @@ const translations = {
         sunsetLabel: 'Sunset Time (HH:MM, optional):',
         sunsetHint: 'Enter sunset time, e.g., 18:00',
         sunsetHintText: 'Leave empty to use auto-detected time',
+        nextSunriseLabel: "Tomorrow's Sunrise Time (HH:MM, optional):",
+        nextSunriseHint: "Enter tomorrow's sunrise time, e.g., 06:00",
+        nextSunriseHintText: 'Leave empty to use auto-detected time',
         saveBtn: '💾 Save Settings',
         customSaveBtn: '💾 Save Custom Times',
         presetLabel: 'Quick Presets:',
@@ -91,6 +97,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const offsetInput = document.getElementById('offsetInput');
     const sunriseInput = document.getElementById('sunriseInput');
     const sunsetInput = document.getElementById('sunsetInput');
+    const nextSunriseInput = document.getElementById('nextSunriseInput');
     const saveBtn = document.getElementById('saveBtn');
     const customTimesSaveBtn = document.getElementById('customTimesSaveBtn');
     const expandBtn = document.getElementById('expandBtn');
@@ -102,7 +109,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const t = translations[lang];
 
     // Load current values from storage
-    const storage = await chrome.storage.sync.get(['timeOffset', 'customSunrise', 'customSunset']);
+    const storage = await chrome.storage.sync.get(['timeOffset', 'customSunrise', 'customSunset', 'customNextSunrise']);
 
     if (storage.timeOffset !== undefined) {
         offsetInput.value = storage.timeOffset / millisecondsPerHour;
@@ -116,6 +123,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (storage.customSunset) {
         sunsetInput.value = storage.customSunset;
+    }
+
+    if (storage.customNextSunrise) {
+        nextSunriseInput.value = storage.customNextSunrise;
     }
 
     // Expand/collapse button handler
@@ -156,7 +167,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 chrome.tabs.sendMessage(tab.id,
                     {
                         action: 'updateOffset',
-                        offset: offset
+                        offset: offset,
+                        userAction: true
                     },
                     (response) => {
                         // Ignore errors - tabs may have been closed
@@ -173,10 +185,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     customTimesSaveBtn.addEventListener('click', async () => {
         const customSunrise = sunriseInput.value && sunriseInput.value.trim() ? sunriseInput.value : null;
         const customSunset = sunsetInput.value && sunsetInput.value.trim() ? sunsetInput.value : null;
+        const customNextSunrise = nextSunriseInput.value && nextSunriseInput.value.trim() ? nextSunriseInput.value : null;
 
         await chrome.storage.sync.set({
             customSunrise: customSunrise,
-            customSunset: customSunset
+            customSunset: customSunset,
+            customNextSunrise: customNextSunrise
         });
 
         showStatus(t.customSaveSuccess, 'success', customStatusDiv);
@@ -197,7 +211,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                     {
                         action: 'updateCustomTimes',
                         customSunrise: customSunrise,
-                        customSunset: customSunset
+                        customSunset: customSunset,
+                        userAction: true
+                    },
+                    (response) => {
+                        // Ignore errors - tabs may have been closed
+                        if (chrome.runtime.lastError) {
+                            // Silently ignore
+                        }
+                    }
+                );
+                
+                // Send next sunrise update separately (even if null/cleared)
+                chrome.tabs.sendMessage(tab.id,
+                    {
+                        action: 'updateCustomNextSunrise',
+                        customNextSunrise: customNextSunrise,
+                        userAction: true
                     },
                     (response) => {
                         // Ignore errors - tabs may have been closed

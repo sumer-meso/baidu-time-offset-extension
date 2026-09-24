@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Time Offset Changer",
+  "name": "Baidu Time Offset Changer",
   "version": "1.1",
-  "description": "修改网页时间差",
+  "description": "百度时间搜索网页偏移器",
   "permissions": ["storage", "tabs"],
   "host_permissions": [
     "*://www.baidu.com/*"
@@ -10,9 +10,6 @@
   "action": {
     "default_popup": "popup.html",
     "default_title": "时间偏移设置"
-  },
-  "background": {
-    "service_worker": "background.js"
   },
   "content_scripts": [
     {
