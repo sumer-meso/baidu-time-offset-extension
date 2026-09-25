@@ -108,8 +108,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const millisecondsPerHour = 60 * 60 * 1000;
     const t = translations[lang];
 
-    // Load current values from storage
-    const storage = await chrome.storage.sync.get(['timeOffset', 'customSunrise', 'customSunset', 'customNextSunrise']);
+    // Load current values from storage (local only, not synced across devices)
+    const storage = await chrome.storage.local.get(['timeOffset', 'customSunrise', 'customSunset', 'customNextSunrise']);
 
     if (storage.timeOffset !== undefined) {
         offsetInput.value = storage.timeOffset / millisecondsPerHour;
@@ -146,7 +146,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const offset = Math.round(hours * millisecondsPerHour);
 
-        await chrome.storage.sync.set({
+        await chrome.storage.local.set({
             timeOffset: offset
         });
 
@@ -187,7 +187,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const customSunset = sunsetInput.value && sunsetInput.value.trim() ? sunsetInput.value : null;
         const customNextSunrise = nextSunriseInput.value && nextSunriseInput.value.trim() ? nextSunriseInput.value : null;
 
-        await chrome.storage.sync.set({
+        await chrome.storage.local.set({
             customSunrise: customSunrise,
             customSunset: customSunset,
             customNextSunrise: customNextSunrise

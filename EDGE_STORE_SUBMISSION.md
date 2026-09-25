@@ -89,10 +89,10 @@ Data stored locally:
 - Time offset preferences (stored in Edge's sync storage)
 - Custom sunrise/sunset times (stored in Edge's sync storage)
 
-Cloud sync:
-- When you sign in with your Microsoft account, your settings are synced across your Edge devices
-- This sync is handled entirely by Microsoft's infrastructure
-- No additional servers or third-party services are involved
+Local storage only:
+- Settings are stored only on your current browser device
+- No cloud sync, no device synchronization
+- Settings are not shared across your Edge devices
 
 The extension only modifies the display on Baidu.com pages and does not send any data to external servers or analytics services.
 

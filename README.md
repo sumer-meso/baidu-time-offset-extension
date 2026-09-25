@@ -8,7 +8,7 @@ A Chrome/Edge extension that allows you to modify the time display on Baidu's ti
 - 🌅 **Custom Sunrise/Sunset Times**: Override sunrise and sunset times for testing
 - 🌍 **Next Sunrise Override**: Set a custom time for the next sunrise event
 - 🎨 **Sun Position Chart**: Visual representation of sun/moon position based on the offset time
-- 💾 **Persistent Settings**: Settings are saved across browser sessions using Chrome/Edge sync storage
+- 💾 **Local Settings Only**: Settings stored only on your browser (no cloud sync)
 - 🔄 **User Action Only**: Changes apply only when you explicitly click buttons in the popup—no auto-application on page reload
 
 ## Installation
