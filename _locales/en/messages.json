@@ -1,0 +1,14 @@
+{
+  "extensionName": {
+    "message": "Baidu Time Offset Changer",
+    "description": "The name of the extension"
+  },
+  "extensionDescription": {
+    "message": "Modify time display on Baidu search pages. Add or subtract hours, customize sunrise/sunset times, and view sun position charts.",
+    "description": "The description of the extension"
+  },
+  "extensionTitle": {
+    "message": "Time Offset Settings",
+    "description": "The title shown when hovering over the extension icon"
+  }
+}

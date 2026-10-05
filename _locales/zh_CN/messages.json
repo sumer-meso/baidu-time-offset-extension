@@ -1,0 +1,14 @@
+{
+  "extensionName": {
+    "message": "百度时间偏移修改器",
+    "description": "扩展程序的名称"
+  },
+  "extensionDescription": {
+    "message": "修改百度搜索页面上的时间显示。增加或减少小时数，自定义日出/日落时间，并查看太阳位置图表。",
+    "description": "扩展程序的描述"
+  },
+  "extensionTitle": {
+    "message": "时间偏移设置",
+    "description": "将鼠标悬停在扩展程序图标上时显示的标题"
+  }
+}
