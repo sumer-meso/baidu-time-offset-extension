@@ -195,7 +195,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     (response) => {
                         // Ignore errors - tabs may have been closed
                         if (chrome.runtime.lastError) {}
-                        }
                     }
                 );
             });
