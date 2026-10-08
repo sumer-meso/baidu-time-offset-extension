@@ -8,7 +8,7 @@ A Chrome/Edge extension that allows you to modify the time display on Baidu's ti
 - 🌅 **Custom Sunrise/Sunset Times**: Override sunrise and sunset times for testing
 - 🌍 **Next Sunrise Override**: Set a custom time for the next sunrise event
 - 🎨 **Sun Position Chart**: Visual representation of sun/moon position based on the offset time
-- 💾 **Local Settings Only**: Settings stored only on your browser (no cloud sync)
+- � **Session-Only Settings**: Settings apply only to the current page/session (no persistence on refresh)
 - 🔄 **User Action Only**: Changes apply only when you explicitly click buttons in the popup—no auto-application on page reload
 
 ## Installation
@@ -45,7 +45,7 @@ A Chrome/Edge extension that allows you to modify the time display on Baidu's ti
 - **Content Script**: `inject.js` - Injects `pageScript.js` into the Baidu page context
 - **Page Script**: `pageScript.js` (~800 lines) - Handles time manipulation and UI updates
 - **Popup**: `popup.html/js` - UI for settings
-- **Storage**: Chrome/Edge `storage.sync` API for cloud sync
+- **Persistence**: None (session-only settings)
 
 ### Key Technologies
 - Chrome/Edge Extension APIs (storage, tabs, runtime messaging)

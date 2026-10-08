@@ -15,7 +15,7 @@ KEY FEATURES:
 • Offset Time Display: Add or subtract any number of hours from the displayed time
 • Custom Times: Override sunrise, sunset, and next sunrise times
 • Sun Chart: Beautiful visualization showing sun/moon position at the offset time
-• Cloud Sync: Your settings persist across all your devices
+• Session-Only Settings: Changes apply only during your current session (reset on page refresh)
 • User Action Only: Changes apply only when you click buttons—no auto-application
 
 PERFECT FOR:
@@ -29,15 +29,17 @@ HOW TO USE:
 2. Enter a time offset (e.g., +5 for 5 hours forward, -3 for 3 hours back)
 3. Click "Apply Offset" to see the changes
 4. Optionally customize sunrise/sunset times for advanced testing
+5. Settings reset when you refresh the page or open a new tab
 
 TECHNICAL INFO:
 • Manifest Version 3 (MV3) - Latest security standard
 • No background scripts - Lightweight and efficient
-• Cloud sync storage - Settings sync across your devices
+• No data persistence - Perfect for privacy-conscious users
+• Zero storage permissions
 • Works on www.baidu.com
 
 PERMISSIONS:
-• storage: To save your settings
+• tabs: To communicate with the page
 • tabs: To communicate with the page
 
 Tested on the latest versions of Chrome and Chromium-based browsers.
@@ -75,16 +77,25 @@ Screenshots should be 1280×800 pixels:
 
 ### Privacy Policy
 ```
-This extension does not collect, store, or transmit any personal user data. 
-It only stores your time offset preferences locally using Chrome's storage API 
-and syncs them to your Chrome account if you have sync enabled.
+This extension does not collect, store, or transmit any personal user data.
 
-The extension only modifies the display on Baidu.com pages and does not send 
-any data to external servers.
+Data Handling:
+- NO data persistence: Settings apply only to the current session
+- NO local storage: All settings are forgotten when you refresh the page or open a new tab
+- NO server communication: The extension only modifies display on Baidu.com pages
+- NO external requests: No data sent to external servers or analytics services
+
+Complete Privacy:
+- No tracking, no analytics, no ads, no profiling
+- No device synchronization
+- No account requirements
+- Lightweight and privacy-first design
+
+This extension is designed for privacy-conscious users who want temporary, session-only modifications without any data persistence.
 ```
 
 ### Whether the extension collects user data
-- No
+- No data collection or storage - session-only
 
 ### Restricted content
 - None - this extension does not contain:

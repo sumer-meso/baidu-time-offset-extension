@@ -15,7 +15,7 @@ KEY FEATURES:
 • Offset Time Display: Add or subtract any number of hours from the displayed time
 • Custom Times: Override sunrise, sunset, and next sunrise times
 • Sun Chart: Beautiful visualization showing sun/moon position at the offset time
-• Cloud Sync: Your settings persist across all your devices with Microsoft account sync
+• Session-Only Settings: Changes apply only during your current session (reset on page refresh)
 • User Action Only: Changes apply only when you click buttons—no auto-application
 
 PERFECT FOR:
@@ -29,15 +29,16 @@ HOW TO USE:
 2. Enter a time offset (e.g., +5 for 5 hours forward, -3 for 3 hours back)
 3. Click "Apply Offset" to see the changes
 4. Optionally customize sunrise/sunset times for advanced testing
+5. Settings reset when you refresh the page or open a new tab
 
 TECHNICAL DETAILS:
 • Manifest Version 3 (MV3) - Latest security standard
 • Lightweight and efficient
-• Works seamlessly across Edge devices
-• Synced with Microsoft account
+• No data persistence - perfect for privacy-conscious users
+• Zero storage permissions
 
 PERMISSIONS:
-• storage: To save your settings
+• tabs: To communicate with the page
 • tabs: To communicate with the page
 
 Fully compatible with Microsoft Edge on Windows, Mac, Android, and iOS.
@@ -83,20 +84,21 @@ Suggested screenshots:
 
 ### Privacy Policy
 ```
-This extension does not collect, store, or transmit any personal user data beyond what is necessary for functionality.
+This extension does not collect, store, or transmit any personal user data.
 
-Data stored locally:
-- Time offset preferences (stored in Edge's sync storage)
-- Custom sunrise/sunset times (stored in Edge's sync storage)
+Data Handling:
+- NO data persistence: Settings apply only to the current session
+- NO local storage: All settings are forgotten when you refresh the page or open a new tab
+- NO server communication: The extension only modifies display on Baidu.com pages
+- NO external requests: No data sent to external servers or analytics services
 
-Local storage only:
-- Settings are stored only on your current browser device
-- No cloud sync, no device synchronization
-- Settings are not shared across your Edge devices
+Complete Privacy:
+- No tracking, no analytics, no ads, no profiling
+- No device synchronization
+- No account requirements
+- Lightweight and privacy-first design
 
-The extension only modifies the display on Baidu.com pages and does not send any data to external servers or analytics services.
-
-No tracking, no analytics, no ads, no profiling.
+This extension is designed for privacy-conscious users who want temporary, session-only modifications without any data persistence.
 ```
 
 ### Maturity Rating
@@ -106,8 +108,8 @@ No tracking, no analytics, no ads, no profiling.
 - Available in all regions (or specify if limited)
 
 ### Does your extension collect user data?
-- No personal data collection
-- Preferences stored locally only
+- No data collection or storage
+- Session-only, no persistence
 
 ### Does your extension contain offensive content?
 - No
@@ -154,8 +156,8 @@ No tracking, no analytics, no ads, no profiling.
 ✅ Your manifest.json is fully compatible with Edge:
 - Manifest V3 is the standard
 - All APIs used (`chrome.*` namespace) work identically in Edge
-- `chrome.storage.sync` syncs with Microsoft account instead of Google account
-- `chrome.tabs` works the same
+- `chrome.tabs` API works the same
+- No storage API needed (session-only, ephemeral settings)
 
 ### No Additional Changes Needed
 - Your code requires no modifications for Edge

@@ -5,7 +5,6 @@
 (function () {
     // Only run on Baidu time search results page (wd=时间)
     if (!window.location.href.includes('wd=%E6%97%B6%E9%97%B4')) {
-        console.log('[Time Offset] Skipping - not a Baidu time search page. URL:', window.location.href);
         return;
     }
 
@@ -246,30 +245,36 @@
         const sunriseHour = eventTimes.sunrise.hour + eventTimes.sunrise.minute / 60;
         const sunsetHour = eventTimes.sunset.hour + eventTimes.sunset.minute / 60;
 
-        let backgroundState = null;  // 'day', 'twilight', or 'night'
+        let backgroundState = null;  // 'pre-sunrise', 'day', 'twilight', or 'night'
 
-        if (currentHour >= sunriseHour && currentHour < sunsetHour - 1) {
-            // Daytime (more than 1 hour before sunset)
+        if (currentHour >= sunriseHour - 1 && currentHour < sunriseHour + 1) {
+            // Pre-sunrise/sunrise period (1 hour before to 1 hour after sunrise)
+            backgroundState = 'pre-sunrise';
+        } else if (currentHour >= sunriseHour + 1 && currentHour < sunsetHour - 1) {
+            // Daytime (more than 1 hour after sunrise and more than 1 hour before sunset)
             backgroundState = 'day';
         } else if (currentHour >= sunsetHour - 1 && currentHour < sunsetHour) {
             // Twilight (within 1 hour before sunset)
             backgroundState = 'twilight';
         } else {
-            // Nighttime (after sunset or close to sunrise)
+            // Nighttime (after sunset or before sunrise period)
             backgroundState = 'night';
         }
 
         // Find the specific wrapper div that is a direct child or close descendant of root
         // This should be the one with class containing "wrapper" and the background image
-        const wrapper = root.querySelector('[class*="wrapper_"]') || root.parentElement?.querySelector('[class*="wrapper_"]');
+        let wrapper = root.querySelector('[class*="wrapper_"]');
+
+        if (!wrapper && root.parentElement) {
+            wrapper = root.parentElement.querySelector('[class*="wrapper_"]');
+        }
 
         if (!wrapper) {
             return;
         }
 
-        if (!wrapper.style.backgroundImage) {
-            return;
-        }
+        // Note: We don't check for existing inline backgroundImage because Baidu may set it via CSS class
+        // We'll override it with !important flag instead
 
         // Use data attributes to track the current mode
         const currentMode = wrapper.getAttribute('data-time-mode');
@@ -281,23 +286,30 @@
         wrapper.setAttribute('data-time-mode', backgroundState);
 
         // Change background image based on time of day
-        if (backgroundState === 'day') {
-            // Daytime background image
-            wrapper.style.backgroundImage = 'url(https://gips0.baidu.com/it/u=567037999,4238421755&fm=3028&app=3028&f=PNG&fmt=auto&q=75&size=f1184_845)';
+        if (backgroundState === 'pre-sunrise') {
+            wrapper.style.setProperty('background-image', 'url(https://gips2.baidu.com/it/u=1032351772,2576377527&fm=3028&app=3028&f=PNG&fmt=auto&q=75&size=f1184_845)', 'important');
+        } else if (backgroundState === 'day') {
+            wrapper.style.setProperty('background-image', 'url(https://gips0.baidu.com/it/u=567037999,4238421755&fm=3028&app=3028&f=PNG&fmt=auto&q=75&size=f1184_845)', 'important');
         } else if (backgroundState === 'twilight') {
-            // Twilight background image (same as day)
-            wrapper.style.backgroundImage = 'url(https://gips0.baidu.com/it/u=3352333234,2234725684&fm=3028&app=3028&f=PNG&fmt=auto&q=75&size=f1184_845)';
+            wrapper.style.setProperty('background-image', 'url(https://gips0.baidu.com/it/u=3352333234,2234725684&fm=3028&app=3028&f=PNG&fmt=auto&q=75&size=f1184_845)', 'important');
         } else {
-            // Nighttime background image
-            wrapper.style.backgroundImage = 'url(https://gips3.baidu.com/it/u=1743996582,3792202273&fm=3028&app=3028&f=PNG&fmt=auto&q=75&size=f1184_840)';
+            wrapper.style.setProperty('background-image', 'url(https://gips3.baidu.com/it/u=1743996582,3792202273&fm=3028&app=3028&f=PNG&fmt=auto&q=75&size=f1184_840)', 'important');
         }
 
         // Update the linear-gradient overlay elements
         const topGradient = wrapper.querySelector('linear-gradient[class*="top_"]');
         const bottomGradient = wrapper.querySelector('linear-gradient[class*="bottom_"]');
 
-        if (backgroundState === 'day') {
-            // Daytime gradients - blue tones matching Baidu's actual style
+        if (backgroundState === 'pre-sunrise') {
+            // Pre-sunrise gradients - dark blue tones
+            if (topGradient) {
+                topGradient.setAttribute('style', 'background-image: linear-gradient(#223265 10%, rgba(33, 50, 101, 0)) !important;');
+            }
+            if (bottomGradient) {
+                bottomGradient.setAttribute('style', 'background-image: linear-gradient(rgba(35, 34, 66, 0), #232242 90%) !important;');
+            }
+        } else if (backgroundState === 'day') {
+            // Daytime gradients - blue tones
             if (topGradient) {
                 topGradient.setAttribute('style', 'background-image: linear-gradient(#4887E6 10%, rgba(72, 135, 230, 0)) !important;');
             }
@@ -340,12 +352,15 @@
         sunCanvas = document.createElement('canvas');
         sunCanvas.width = chartCanvas.width;
         sunCanvas.height = chartCanvas.height;
+        // Extract style dimensions from chartCanvas to match display scaling
+        const styleWidth = chartCanvas.style.width || (chartCanvas.width + 'px');
+        const styleHeight = chartCanvas.style.height || (chartCanvas.height + 'px');
         sunCanvas.style.cssText = [
             'position: absolute',
             'left: 0px',
             'top: 0px',
-            'width: ' + chartCanvas.width + 'px',
-            'height: ' + chartCanvas.height + 'px',
+            'width: ' + styleWidth,
+            'height: ' + styleHeight,
             'user-select: none',
             '-webkit-tap-highlight-color: rgba(0, 0, 0, 0)',
             'padding: 0px',
@@ -372,6 +387,8 @@
         const context = canvas.getContext('2d');
         const width = canvas.width;
         const height = canvas.height;
+        // Calculate DPI scale factor (e.g., 744/372 = 2 for high-DPI displays)
+        const dpiScale = width / canvas.offsetWidth;
         const sunriseHour = eventTimes.sunrise.hour + eventTimes.sunrise.minute / 60;
         const sunsetHour = eventTimes.sunset.hour + eventTimes.sunset.minute / 60;
         const currentHour = displayedTime.getHours()
@@ -387,7 +404,7 @@
             position = (currentHour - sunsetHour) / (24 - sunsetHour) * 6 + 18;
         }
 
-        const toX = hour => (hour / 24 * 356) + 8;
+        const toX = hour => (hour / 24 * (width - 16 * dpiScale)) + 8 * dpiScale;
         const toY = value => (0.7 - value) / 1.4 * height;
         const curveY = value => 0.5 * Math.sin(Math.PI / 12 * (value - 6));
 
@@ -406,7 +423,7 @@
                 }
             }
             context.strokeStyle = strokeStyle;
-            context.lineWidth = lineWidth;
+            context.lineWidth = lineWidth * dpiScale;
             context.stroke();
         };
 
@@ -414,10 +431,10 @@
 
         const baselineGradient = context.createLinearGradient(0, 0, width, 0);
         baselineGradient.addColorStop(0, 'rgba(255, 240, 161, 0)');
-        baselineGradient.addColorStop(0.36, 'rgba(255, 255, 255, 1)');
-        baselineGradient.addColorStop(0.46, '#ffffff');
-        baselineGradient.addColorStop(0.54, '#ffffff');
-        baselineGradient.addColorStop(0.64, 'rgba(255, 255, 255, 1)');
+        baselineGradient.addColorStop(0.36, 'rgba(255, 255, 255, 0.7)');
+        baselineGradient.addColorStop(0.46, 'rgba(255, 255, 255, 0.7)');
+        baselineGradient.addColorStop(0.54, 'rgba(255, 255, 255, 0.7)');
+        baselineGradient.addColorStop(0.64, 'rgba(255, 255, 255, 0.7)');
         baselineGradient.addColorStop(1, 'rgba(255, 240, 161, 0)');
         const daytimeGradient = context.createLinearGradient(toX(sunriseHour), 0, toX(sunsetHour), 0);
         daytimeGradient.addColorStop(0, 'rgba(255, 240, 161, 0.10)');
@@ -429,18 +446,18 @@
         drawSegment(sunriseHour, sunsetHour, daytimeGradient, 2);
 
         context.save();
-        context.setLineDash([5, 2]);
+        context.setLineDash([4 * dpiScale, 2 * dpiScale]);
         context.beginPath();
         context.moveTo(0, toY(0));
         context.lineTo(width, toY(0));
         context.strokeStyle = baselineGradient;
-        context.lineWidth = 0.7;
+        context.lineWidth = 0.5 * dpiScale;
         context.stroke();
         context.restore();
 
         const drawPoint = (hour, color) => {
             context.beginPath();
-            context.arc(toX(hour), toY(curveY(hour)), 2, 0, Math.PI * 2);
+            context.arc(toX(hour), toY(curveY(hour)), 2 * dpiScale, 0, Math.PI * 2);
             context.fillStyle = color;
             context.fill();
         };
@@ -458,9 +475,12 @@
             marker.onload = () => drawSunChart(root, displayedTime);
             marker.src = markerUrl;
         } else if (marker.complete) {
-            // Clamp marker position to prevent cutoff at edges (marker is 24x24, drawn with 12px offset)
-            const clampedMarkerX = Math.max(29, Math.min(width - 29, markerX));
-            context.drawImage(marker, clampedMarkerX - 12, markerY - 12, 24, 24);
+            // Clamp marker position to prevent cutoff at edges
+            const markerSize = 24 * dpiScale;
+            const markerOffset = 12 * dpiScale;
+            const clampMargin = markerOffset + 5;
+            const clampedMarkerX = Math.max(clampMargin, Math.min(width - clampMargin, markerX));
+            context.drawImage(marker, clampedMarkerX - markerOffset, markerY - markerOffset, markerSize, markerSize);
         }
         // TODO: check around midnight if the sun marker is a full picture, also compare with Baidu's sun marker
     }

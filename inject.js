@@ -7,7 +7,7 @@
         this.remove();
     };
     pageScript.onerror = function() {
-        console.error('[Time Offset] 加载 pageScript.js 失败');
+        // Failed to load pageScript.js
     };
     (document.head || document.documentElement).appendChild(pageScript);
     

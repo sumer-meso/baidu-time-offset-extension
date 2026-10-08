@@ -108,26 +108,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const millisecondsPerHour = 60 * 60 * 1000;
     const t = translations[lang];
 
-    // Load current values from storage (local only, not synced across devices)
-    const storage = await chrome.storage.local.get(['timeOffset', 'customSunrise', 'customSunset', 'customNextSunrise']);
-
-    if (storage.timeOffset !== undefined) {
-        offsetInput.value = storage.timeOffset / millisecondsPerHour;
-    } else {
-        offsetInput.value = 2;
-    }
-
-    if (storage.customSunrise) {
-        sunriseInput.value = storage.customSunrise;
-    }
-
-    if (storage.customSunset) {
-        sunsetInput.value = storage.customSunset;
-    }
-
-    if (storage.customNextSunrise) {
-        nextSunriseInput.value = storage.customNextSunrise;
-    }
+    // No persistent storage - settings only apply to current session
+    // Set default values for the popup UI
+    offsetInput.value = 2;  // Default offset
+    sunriseInput.value = '';
+    sunsetInput.value = '';
+    nextSunriseInput.value = '';
 
     // Expand/collapse button handler
     expandBtn.addEventListener('click', () => {
@@ -136,7 +122,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // Save button click handler - ONLY saves offset
-    saveBtn.addEventListener('click', async () => {
+    saveBtn.addEventListener('click', () => {
         const hours = Number(offsetInput.value);
         
         if (!Number.isFinite(hours)) {
@@ -145,11 +131,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         const offset = Math.round(hours * millisecondsPerHour);
-
-        await chrome.storage.local.set({
-            timeOffset: offset
-        });
-
         showStatus(`${t.saveSuccess}${hours}${t.hoursSuffix}`, 'success', statusDiv);
 
         // Notify only Baidu time search tabs about the new offset
@@ -158,11 +139,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const filteredTabs = tabs.filter(tab => tab.url && tab.url.includes('wd=%E6%97%B6%E9%97%B4'));
             const skippedTabs = tabs.length - filteredTabs.length;
 
-            if (skippedTabs > 0) {
-                console.log(`[Time Offset Popup] Skipping ${skippedTabs} non-time-search tabs`);
-            }
-            console.log(`[Time Offset Popup] Sending offset update to ${filteredTabs.length} time-search tabs`);
-
+            if (skippedTabs > 0) {}
             filteredTabs.forEach(tab => {
                 chrome.tabs.sendMessage(tab.id,
                     {
@@ -172,9 +149,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     },
                     (response) => {
                         // Ignore errors - tabs may have been closed
-                        if (chrome.runtime.lastError) {
-                            // Silently ignore
-                        }
+                        if (chrome.runtime.lastError) {}
                     }
                 );
             });
@@ -182,16 +157,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // Custom times save button handler - saves custom sunrise/sunset
-    customTimesSaveBtn.addEventListener('click', async () => {
+    customTimesSaveBtn.addEventListener('click', () => {
         const customSunrise = sunriseInput.value && sunriseInput.value.trim() ? sunriseInput.value : null;
         const customSunset = sunsetInput.value && sunsetInput.value.trim() ? sunsetInput.value : null;
         const customNextSunrise = nextSunriseInput.value && nextSunriseInput.value.trim() ? nextSunriseInput.value : null;
-
-        await chrome.storage.local.set({
-            customSunrise: customSunrise,
-            customSunset: customSunset,
-            customNextSunrise: customNextSunrise
-        });
 
         showStatus(t.customSaveSuccess, 'success', customStatusDiv);
 
@@ -201,11 +170,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const filteredTabs = tabs.filter(tab => tab.url && tab.url.includes('wd=%E6%97%B6%E9%97%B4'));
             const skippedTabs = tabs.length - filteredTabs.length;
 
-            if (skippedTabs > 0) {
-                console.log(`[Time Offset Popup] Skipping ${skippedTabs} non-time-search tabs`);
-            }
-            console.log(`[Time Offset Popup] Sending custom times update to ${filteredTabs.length} time-search tabs`);
-
+            if (skippedTabs > 0) {}
             filteredTabs.forEach(tab => {
                 chrome.tabs.sendMessage(tab.id,
                     {
@@ -216,9 +181,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     },
                     (response) => {
                         // Ignore errors - tabs may have been closed
-                        if (chrome.runtime.lastError) {
-                            // Silently ignore
-                        }
+                        if (chrome.runtime.lastError) {}
                     }
                 );
                 
@@ -231,8 +194,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     },
                     (response) => {
                         // Ignore errors - tabs may have been closed
-                        if (chrome.runtime.lastError) {
-                            // Silently ignore
+                        if (chrome.runtime.lastError) {}
                         }
                     }
                 );
