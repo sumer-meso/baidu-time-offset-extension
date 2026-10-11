@@ -25,11 +25,12 @@ PERFECT FOR:
 • Educational and development purposes
 
 HOW TO USE:
-1. Click the extension icon on Baidu time search pages
-2. Enter a time offset (e.g., +5 for 5 hours forward, -3 for 3 hours back)
-3. Click "Apply Offset" to see the changes
-4. Optionally customize sunrise/sunset times for advanced testing
-5. Settings reset when you refresh the page or open a new tab
+1. Open baidu.com and search for "时间" (time) to open the Baidu time search page
+2. Click the extension icon
+3. Enter a time offset (e.g., +5 for 5 hours forward, -3 for 3 hours back)
+4. Click "Apply Offset" to see the changes
+5. Optionally customize sunrise/sunset times for advanced testing
+6. Settings reset when you refresh the page or open a new tab
 
 TECHNICAL DETAILS:
 • Manifest Version 3 (MV3) - Latest security standard
