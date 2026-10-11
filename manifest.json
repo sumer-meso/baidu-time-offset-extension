@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extensionName__",
-  "version": "1.3",
+  "version": "1.4",
   "description": "__MSG_extensionDescription__",
   "default_locale": "en",
   "permissions": ["tabs"],
@@ -14,7 +14,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["*://www.baidu.com/*", "*://*.baidu.com/*"],
+      "matches": ["*://www.baidu.com/*"],
       "js": ["inject.js"],
       "run_at": "document_start",
       "all_frames": true
@@ -23,7 +23,7 @@
   "web_accessible_resources": [
     {
       "resources": ["pageScript.js"],
-      "matches": ["*://www.baidu.com/*", "*://*.baidu.com/*"]
+      "matches": ["*://www.baidu.com/*"]
     }
   ]
 }

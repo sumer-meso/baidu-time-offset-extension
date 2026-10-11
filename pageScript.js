@@ -3,12 +3,14 @@
 // Wrapped in an IIFE: top-level `function`/`let` names were colliding with globals
 // declared later by Baidu's own bundle (e.g. window.formatDate got overwritten).
 (function () {
-    // Only run on Baidu time search results page (wd=时间)
-    if (!window.location.href.includes('wd=%E6%97%B6%E9%97%B4')) {
-        return;
+    const LOG_PREFIX = '[Time Offset]';
+    // Baidu navigates from the homepage to the time widget via history.pushState
+    // (no new document load), so this must be re-checked on every DOM change below
+    // rather than gating the whole script once at injection time.
+    function isTimeQueryPage() {
+        return window.location.href.includes('wd=%E6%97%B6%E9%97%B4');
     }
 
-    const LOG_PREFIX = '[Time Offset]';
     window.time_offset = 0;
     let customSunrise = null;  // Custom sunrise time in HH:MM format
     let customSunset = null;   // Custom sunset time in HH:MM format
@@ -654,16 +656,15 @@
     }
 
     function findAndStart() {
+        if (!isTimeQueryPage()) {
+            return;
+        }
         const root = document.querySelector('[tpl="world_time_san"]');
         if (!root || !initialize(root)) {
             return;
         }
         if (!updateTimer) {
             updateTimer = setInterval(update, UPDATE_INTERVAL_MS);
-        }
-        if (observer) {
-            observer.disconnect();
-            observer = null;
         }
         update();
         
